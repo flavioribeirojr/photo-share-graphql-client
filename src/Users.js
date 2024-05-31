@@ -1,4 +1,4 @@
-import { gql, useMutation, useQuery } from 'urql';
+import { gql, useMutation, useQuery, useSubscription } from 'urql';
 import { ROOT_QUERY } from './App';
 import { Link } from 'react-router-dom';
 
@@ -12,7 +12,21 @@ const ADD_FAKE_USERS_MUTATION = gql`
   }
 `;
 
+const LISTEN_FOR_USERS_SUBSCRIPTION = gql`
+  subscription {
+    newUser {
+      githubLogin
+      name
+      avatar
+    }
+  }
+`
+
 export function Users() {
+  useSubscription({ query: LISTEN_FOR_USERS_SUBSCRIPTION }, function (previousUsers = [], response) {
+    return [response.newUser, ...previousUsers];
+  });
+
   const [ result, reexecuteQuery ] = useQuery({
     query: ROOT_QUERY
   });

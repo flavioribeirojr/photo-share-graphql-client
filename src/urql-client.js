@@ -1,21 +1,29 @@
 import { cacheExchange } from '@urql/exchange-graphcache';
 import React from  'react';
-import { Client, Provider, fetchExchange } from 'urql';
+import { Client, Provider, fetchExchange, subscriptionExchange } from 'urql';
 import { ROOT_QUERY } from './App';
+import { createClient as createWSClient } from 'graphql-ws';
+
+const wsClient = createWSClient({
+  url: 'ws://localhost:4000/graphql',
+  connectionParams: () => ({
+    Authorization: localStorage.getItem('token'),
+  })
+});
 
 const makeClient = () => new Client({
   url: 'http://localhost:4000/graphql',
   exchanges: [
     cacheExchange({
       updates: {
-        Mutation: {
-          addFakeUsers(result, _args, cache, _info) {
+        Subscription: {
+          newUser(result, _args, cache) {
             cache.updateQuery({ query: ROOT_QUERY }, data => {
               return {
                 ...data,
-                totalUsers: data.totalUsers + result.addFakeUsers.length,
-                allUsers: [...data.allUsers, ...result.addFakeUsers],
-              };
+                totalUsers: data.totalUsers + 1,
+                allUsers: [...data.allUsers, result.newUser],
+              }
             });
           }
         }
@@ -25,6 +33,17 @@ const makeClient = () => new Client({
       }
     }),
     fetchExchange,
+    subscriptionExchange({
+      forwardSubscription(request) {
+        const input = { ...request, query: request.query || '' };
+        return {
+          subscribe(sink) {
+            const unsubscribe = wsClient.subscribe(input, sink);
+            return { unsubscribe };
+          },
+        };
+      },
+    }),
   ],
   requestPolicy: 'cache-first',
   fetchOptions: () => ({
